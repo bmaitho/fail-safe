@@ -1,8 +1,8 @@
 import click
-from flask import Flask
 from app import create_app, db
 from werkzeug.security import generate_password_hash, check_password_hash
 from models import User, Role, Project, Cohort, ProjectMember, ProjectCohort
+import random
 
 app = create_app()
 
@@ -158,8 +158,7 @@ def assign_cohort_to_project(project_id, cohort_id):
 def list_students():
     """List all students."""
     with app.app_context():
-        student_role_id = get_role_id_by_name('student')
-        students = User.query.filter_by(role_id=student_role_id).all()
+        students = User.query.filter_by(role_id=get_role_id_by_name('student')).all()
         for student in students:
             click.echo(f'ID: {student.id}, Username: {student.username}, Email: {student.email}')
 
