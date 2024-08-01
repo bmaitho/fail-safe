@@ -1,5 +1,5 @@
 from faker import Faker
-from app import app, db
+from app import create_app, db
 from models import User, Role, Project, Cohort, ProjectMember, ProjectCohort
 from werkzeug.security import generate_password_hash
 import random
@@ -39,8 +39,7 @@ def create_projects(users, num_projects):
             name=fake.sentence(nb_words=4),
             description=fake.paragraph(),
             owner_id=owner.id,
-            github_link=f"https://github.com/{fake.user_name()}/{fake.word()}",  # Generate valid GitHub link
-            image_url=fake.image_url()  # Add image URL
+            github_link=f"https://github.com/{fake.user_name()}/{fake.slug()}"
         )
         projects.append(project)
         db.session.add(project)
@@ -82,6 +81,7 @@ def assign_projects_to_cohorts(projects, cohorts):
     db.session.commit()
 
 if __name__ == "__main__":
+    app = create_app()
     with app.app_context():
         db.drop_all()  # Drops all tables
         db.create_all()  # Creates all tables

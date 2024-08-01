@@ -19,7 +19,7 @@ class User(db.Model):
 
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
-
+    
     def to_dict(self):
         return {
             'id': self.id,
@@ -45,11 +45,10 @@ class Project(db.Model):
     description = Column(String(500))
     owner_id = Column(Integer, ForeignKey('user.id'), nullable=False)
     github_link = Column(String(200))
-    image_url = Column(String(200))  # New column for image URL
     owner = relationship('User', back_populates='projects')
     project_members = relationship('ProjectMember', back_populates='project')
     project_cohorts = relationship('ProjectCohort', back_populates='project')
-
+    
     @validates('name')
     def validate_name(self, key, name):
         if len(name) < 7:
@@ -61,7 +60,7 @@ class Project(db.Model):
         if not github_link.startswith('https://github.com/'):
             raise AssertionError('GitHub link must start with "https://github.com/"')
         return github_link
-
+    
     @validates('description')
     def validate_description(self, key, description):
         if len(description) < 20:
@@ -74,8 +73,7 @@ class Project(db.Model):
             'name': self.name,
             'description': self.description,
             'owner_id': self.owner_id,
-            'github_link': self.github_link,
-            'image_url': self.image_url
+            'github_link': self.github_link
         }
 
 class Cohort(db.Model):

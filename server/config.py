@@ -12,5 +12,9 @@ class Config:
     JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY', 'myjwtsecretkey')
 
     # Additional configurations can be added here
+
     # Example: To enable debugging mode based on an environment variable
     DEBUG = os.getenv('DEBUG', 'false').lower() in ['true', '1']
+
+    DEBUG = os.getenv('DEBUG', 'false').lower() in ['true', '1']
+

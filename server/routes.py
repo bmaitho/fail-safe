@@ -2,24 +2,29 @@ from flask import Blueprint, request, jsonify
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 from app import db
-from models import User, Project, Cohort, ProjectMember, ProjectCohort, Role
+from models import User, Project, Cohort, ProjectMember, ProjectCohort
 from functools import wraps
 
 # Define Blueprints
 auth_bp = Blueprint('auth', __name__)
 api_bp = Blueprint('api', __name__)
 
-def role_required(role_name):
+def role_required(role):
     def decorator(fn):
         @wraps(fn)
         def wrapper(*args, **kwargs):
             identity = get_jwt_identity()
-            user = User.query.get(identity['id'])
-            if user.role.name != role_name:
+            user_role = identity['role_id']
+            if user_role != role:
                 return jsonify({'message': 'Access forbidden: Insufficient role'}), 403
             return fn(*args, **kwargs)
         return wrapper
     return decorator
+
+# Basic Test Route
+@api_bp.route('/test', methods=['GET'])
+def test():
+    return jsonify({'message': 'API is working!'}), 200
 
 # Registration Route
 @auth_bp.route('/register', methods=['POST'])
@@ -28,14 +33,13 @@ def register():
     username = data.get('username')
     email = data.get('email')
     password = data.get('password')
-    role_name = data.get('role', 'student')  # Default role to student
-    role = Role.query.filter_by(name=role_name).first()
+    role_id = data.get('role_id', 1)  # Default role_id to student
 
     if User.query.filter_by(email=email).first():
         return jsonify({'message': 'User already exists'}), 400
 
     hashed_password = generate_password_hash(password)
-    new_user = User(username=username, email=email, password_hash=hashed_password, role=role)
+    new_user = User(username=username, email=email, password_hash=hashed_password, role_id=role_id)
     db.session.add(new_user)
     db.session.commit()
 
@@ -53,7 +57,7 @@ def login():
     if not user or not check_password_hash(user.password_hash, password):
         return jsonify({'message': 'Invalid credentials'}), 401
 
-    access_token = create_access_token(identity={'id': user.id, 'username': user.username, 'role': user.role.name})
+    access_token = create_access_token(identity={'username': user.username, 'role_id': user.role_id})
     return jsonify(access_token=access_token), 200
 
 # Get all Projects
@@ -77,8 +81,8 @@ def create_project():
     data = request.get_json()
     name = data.get('name')
     description = data.get('description')
-    owner_id = get_jwt_identity()['id']
     github_link = data.get('github_link')
+    owner_id = get_jwt_identity()['user_id']
 
     new_project = Project(
         name=name,
@@ -95,10 +99,10 @@ def create_project():
 @jwt_required()
 def update_project(project_id):
     project = Project.query.get_or_404(project_id)
-    user_id = get_jwt_identity()['id']
-    role_name = get_jwt_identity()['role']
+    user_id = get_jwt_identity()['user_id']
+    role_id = get_jwt_identity()['role_id']
 
-    if role_name == 'student' and project.owner_id != user_id:
+    if role_id == 1 and project.owner_id != user_id:  # Student role
         return jsonify({'message': 'Access forbidden: You can only update your own projects'}), 403
 
     data = request.get_json()
@@ -112,7 +116,7 @@ def update_project(project_id):
 # Delete a Project (Admin only)
 @api_bp.route('/projects/<int:project_id>', methods=['DELETE'])
 @jwt_required()
-@role_required('admin')
+@role_required(2)  # Admin role
 def delete_project(project_id):
     project = Project.query.get_or_404(project_id)
     db.session.delete(project)
@@ -133,7 +137,7 @@ def get_cohorts():
 # Create a New Cohort (Admin only)
 @api_bp.route('/cohorts', methods=['POST'])
 @jwt_required()
-@role_required('admin')
+@role_required(2)  # Admin role
 def create_cohort():
     data = request.get_json()
     name = data.get('name')
@@ -163,10 +167,10 @@ def get_project_members():
 def create_project_member():
     data = request.get_json()
     project_id = data.get('project_id')
-    user_id = get_jwt_identity()['id']
-    role_name = get_jwt_identity()['role']
+    user_id = get_jwt_identity()['user_id']
+    role_id = get_jwt_identity()['role_id']
     
-    if role_name == 'student':
+    if role_id == 1:  # Student role
         if data.get('user_id') != user_id:
             return jsonify({'message': 'Access forbidden: Students can only assign themselves'}), 403
     else:  # Admin role
@@ -196,7 +200,7 @@ def get_project_cohorts():
 # Assign Projects to Cohorts (Admin only)
 @api_bp.route('/project_cohorts', methods=['POST'])
 @jwt_required()
-@role_required('admin')
+@role_required(2)  # Admin role
 def assign_project_to_cohort():
     data = request.get_json()
     project_id = data.get('project_id')
@@ -216,7 +220,7 @@ def assign_project_to_cohort():
 # Get all Users (Admin only)
 @api_bp.route('/users', methods=['GET'])
 @jwt_required()
-@role_required('admin')
+@role_required(2)  # Admin role
 def get_users():
     users = User.query.all()
     return jsonify([user.to_dict() for user in users]), 200
@@ -224,12 +228,19 @@ def get_users():
 # Delete a User (Admin only)
 @api_bp.route('/users/<int:user_id>', methods=['DELETE'])
 @jwt_required()
-@role_required('admin')
+@role_required(2)  # Admin role
 def delete_user(user_id):
     user = User.query.get_or_404(user_id)
     db.session.delete(user)
     db.session.commit()
     return jsonify({'message': 'User deleted successfully'}), 200
+
+# Get Projects for a Specific User
+@api_bp.route('/users/<int:user_id>/projects', methods=['GET'])
+def get_user_projects(user_id):
+    user = User.query.get_or_404(user_id)
+    projects = Project.query.filter_by(owner_id=user_id).all()
+    return jsonify([project.to_dict() for project in projects]), 200
 
 # Register Blueprints
 def register_blueprints(app):
