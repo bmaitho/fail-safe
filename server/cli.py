@@ -1,9 +1,8 @@
 import click
 from flask import current_app as app
 from werkzeug.security import generate_password_hash, check_password_hash
-from models import User, Project, Cohort, ProjectMember, ProjectCohort, Role
+from models import User, Project, Role
 from app import db
-import requests
 from flask_jwt_extended import create_access_token, decode_token
 from functools import wraps
 
@@ -18,19 +17,19 @@ def role_required(required_role):
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
-            # Simulate request context for CLI
             token = kwargs.get('token', None)
             if not token:
                 click.echo("Missing token")
                 return
             
             try:
-                current_user = decode_token(token)
+                decoded_token = decode_token(token)
+                user_role_id = decoded_token['sub']['role_id']
+                user_role = Role.query.get(user_role_id).name
             except Exception as e:
                 click.echo("Invalid token")
                 return
 
-            user_role = Role.query.get(current_user['sub']['role_id']).name
             if user_role != required_role:
                 click.echo(f"Access forbidden: {user_role} cannot perform this action")
                 return
@@ -104,6 +103,3 @@ def list_projects(token):
         projects = Project.query.all()
         for project in projects:
             click.echo(f'ID: {project.id}, Name: {project.name}, Description: {project.description}, GitHub: {project.github_link}')
-
-# Similarly, update other CLI commands with role checks and necessary logic
-
